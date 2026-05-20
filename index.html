@@ -238,6 +238,21 @@
       box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
     }
 
+    /* Status Badge Styling */
+    .status-badge {
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      display: inline-block;
+      text-align: center;
+    }
+    .status-badge.pending { background: #fef3c7; color: #92400e; }
+    .status-badge.review { background: #dbeafe; color: #1e40af; }
+    .status-badge.approved { background: #dcfce7; color: #166534; }
+    .status-badge.rejected { background: #fee2e2; color: #991b1b; }
+
     /* HOME PAGE WELCOME STYLING */
     .home-hero-card {
       background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
@@ -523,7 +538,7 @@
           </div>
         </div>
         
-        <div class="kpi-card kpi-highlighted kpi-process-highlight">
+        <div class="kpi-card kpi-highlighted kpi-process-highlight clickable-card" id="process-trigger">
           <div class="kpi-content">
             <div class="icon-circle" style="background:#fffbeb;color:#f59e0b"><i class="fas fa-clock"></i></div>
             <div class="val-num" id="stat-process">22</div>
@@ -722,7 +737,7 @@
         <div class="search-wrapper" id="modal-search-wrapper" style="display: none;">
           <div class="search-input-group">
             <i class="fas fa-search"></i>
-            <input type="text" id="table-search-input" class="search-control" placeholder="Type to search institution, credential, or region...">
+            <input type="text" id="table-search-input" class="search-control" placeholder="Type to search institution, region, or status...">
           </div>
         </div>
 
@@ -753,6 +768,7 @@
     google.charts.load('current', {'packages':['corechart']});
 
     let rawMatrixData = []; 
+    let rawProcessData = [];
     let mapInitialized = false;
     let mapObject = null;
     let cachedRes = null;
@@ -924,41 +940,96 @@
       }).getAllHEIsList();
     });
 
-    function renderMatrixTable(filteredData) {
+    function renderMatrixTable(filteredData, isProcess = false) {
       const tbody = document.getElementById('approved-list-body');
       if (!filteredData || filteredData.length === 0) { 
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center p-5 text-muted">No matching provider records found.</td></tr>'; 
+        tbody.innerHTML = '<tr><td colspan="' + (isProcess ? '4' : '6') + '" class="text-center p-5 text-muted">No matching records found.</td></tr>'; 
         return; 
       }
       tbody.innerHTML = '';
-      const heiCounts = {};
-      filteredData.forEach(item => { heiCounts[item.hei] = (heiCounts[item.hei] || 0) + 1; });
-      const renderedHeis = new Set();
 
-      filteredData.forEach(item => {
-        const isFirstRow = !renderedHeis.has(item.hei);
-        const rowSpan = heiCounts[item.hei];
-        let rowHtml = '<tr>';
+      if (isProcess) {
+        // In-Process format: Region, Institution Name, No. of MCs Application, Status
+        const heiCounts = {};
+        filteredData.forEach(item => { heiCounts[item.hei] = (heiCounts[item.hei] || 0) + 1; });
+        const renderedHeis = new Set();
 
-        if (isFirstRow) {
-          rowHtml += `<td rowspan="${rowSpan}" style="padding: 15px 20px; border-right: 1px solid #f1f5f9; font-size: 13px; white-space: nowrap; text-align: center; vertical-align: top !important;">${item.region || '-'}</td>`;
-          rowHtml += `<td rowspan="${rowSpan}" style="padding: 15px 20px; font-weight: 700; border-right: 1px solid #f1f5f9; font-size: 13px; vertical-align: top !important;">${item.hei || '-'}</td>`;
-          rowHtml += `<td rowspan="${rowSpan}" style="padding: 15px 20px; text-align: center; border-right: 1px solid #f1f5f9; font-size: 13px; vertical-align: top !important;"><span class="mc-count-badge">${rowSpan}</span></td>`;
-          renderedHeis.add(item.hei);
-        }
+        filteredData.forEach(item => {
+          const isFirstRow = !renderedHeis.has(item.hei);
+          const rowSpan = heiCounts[item.hei];
+          let rowHtml = '<tr>';
 
-        rowHtml += `
-          <td style="padding: 15px 20px; border-right: 1px solid #f1f5f9; font-size: 13px; vertical-align: top !important;">
-            <div class="mc-list-item" style="margin: 0;"><i class="fas fa-check-circle" style="color: #10b981;"></i><span>${item.mc}</span></div>
-          </td>
-          <td style="padding: 15px 20px; text-align: center; border-right: 1px solid #f1f5f9; font-size: 13px; font-weight: 600; vertical-align: top !important;">${item.type || '-'}</td>
-        `;
+          if (isFirstRow) {
+            rowHtml += `<td rowspan="${rowSpan}" style="padding: 15px 20px; border-right: 1px solid #f1f5f9; font-size: 13px; white-space: nowrap; text-align: center; vertical-align: top !important;">${item.region || '-'}</td>`;
+            rowHtml += `<td rowspan="${rowSpan}" style="padding: 15px 20px; font-weight: 700; border-right: 1px solid #f1f5f9; font-size: 13px; vertical-align: top !important;">${item.hei || '-'}</td>`;
+            rowHtml += `<td rowspan="${rowSpan}" style="padding: 15px 20px; text-align: center; border-right: 1px solid #f1f5f9; font-size: 13px; vertical-align: top !important;"><span class="mc-count-badge">${rowSpan}</span></td>`;
+            renderedHeis.add(item.hei);
+          }
 
-        if (isFirstRow) rowHtml += `<td rowspan="${rowSpan}" style="padding: 15px 20px; text-align: center; font-size: 13px; font-weight: 600; vertical-align: top !important;">${item.validity || '-'}</td>`;
-        rowHtml += '</tr>';
-        tbody.insertAdjacentHTML('beforeend', rowHtml);
-      });
+          rowHtml += `<td style="padding: 15px 20px; font-size: 13px; vertical-align: top !important;">
+            <span class="status-badge ${(item.status || '').toLowerCase().replace(' ', '-')}">${item.status || 'Pending'}</span>
+          </td>`;
+          rowHtml += '</tr>';
+          tbody.insertAdjacentHTML('beforeend', rowHtml);
+        });
+      } else {
+        // Approved format: Region, Institution, MC Count, Title of MCs, Type, Validity
+        const heiCounts = {};
+        filteredData.forEach(item => { heiCounts[item.hei] = (heiCounts[item.hei] || 0) + 1; });
+        const renderedHeis = new Set();
+
+        filteredData.forEach(item => {
+          const isFirstRow = !renderedHeis.has(item.hei);
+          const rowSpan = heiCounts[item.hei];
+          let rowHtml = '<tr>';
+
+          if (isFirstRow) {
+            rowHtml += `<td rowspan="${rowSpan}" style="padding: 15px 20px; border-right: 1px solid #f1f5f9; font-size: 13px; white-space: nowrap; text-align: center; vertical-align: top !important;">${item.region || '-'}</td>`;
+            rowHtml += `<td rowspan="${rowSpan}" style="padding: 15px 20px; font-weight: 700; border-right: 1px solid #f1f5f9; font-size: 13px; vertical-align: top !important;">${item.hei || '-'}</td>`;
+            rowHtml += `<td rowspan="${rowSpan}" style="padding: 15px 20px; text-align: center; border-right: 1px solid #f1f5f9; font-size: 13px; vertical-align: top !important;"><span class="mc-count-badge">${rowSpan}</span></td>`;
+            renderedHeis.add(item.hei);
+          }
+
+          rowHtml += `
+            <td style="padding: 15px 20px; border-right: 1px solid #f1f5f9; font-size: 13px; vertical-align: top !important;">
+              <div class="mc-list-item" style="margin: 0;"><i class="fas fa-check-circle" style="color: #10b981;"></i><span>${item.mc}</span></div>
+            </td>
+            <td style="padding: 15px 20px; text-align: center; border-right: 1px solid #f1f5f9; font-size: 13px; font-weight: 600; vertical-align: top !important;">${item.type || '-'}</td>
+          `;
+
+          if (isFirstRow) rowHtml += `<td rowspan="${rowSpan}" style="padding: 15px 20px; text-align: center; font-size: 13px; font-weight: 600; vertical-align: top !important;">${item.validity || '-'}</td>`;
+          rowHtml += '</tr>';
+          tbody.insertAdjacentHTML('beforeend', rowHtml);
+        });
+      }
     }
+
+    document.getElementById('process-trigger').addEventListener('click', function() {
+      const modal = new bootstrap.Modal(document.getElementById('approvedModal'));
+      const title = document.getElementById('modal-title-text');
+      const thead = document.getElementById('modal-table-head');
+      const tbody = document.getElementById('approved-list-body');
+      const searchInput = document.getElementById('table-search-input');
+      
+      document.getElementById('modal-search-wrapper').style.display = 'block';
+      searchInput.value = ''; 
+      title.innerHTML = '<i class="fas fa-hourglass-half text-warning me-2"></i> In-Process Applications';
+      
+      thead.innerHTML = `
+        <tr>
+          <th style="width: 20%; text-align: center !important;">Region</th>
+          <th style="width: 35%; text-align: center !important;">Institution Name</th>
+          <th style="width: 20%; text-align: center !important;">No. of MCs Application</th>
+          <th style="width: 25%; text-align: center !important;">Status</th>
+        </tr>`;
+        
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center p-5"><div class="spinner-border text-light me-2"></div> Fetching in-process data...</td></tr>';
+      modal.show();
+      google.script.run.withSuccessHandler(function(data) {
+        rawProcessData = data || []; 
+        renderMatrixTable(rawProcessData, true);
+      }).getInProcessDetails();
+    });
 
     document.getElementById('approved-trigger').addEventListener('click', function() {
       const modal = new bootstrap.Modal(document.getElementById('approvedModal'));
@@ -985,21 +1056,25 @@
       modal.show();
       google.script.run.withSuccessHandler(function(data) {
         rawMatrixData = data || []; 
-        renderMatrixTable(rawMatrixData);
+        renderMatrixTable(rawMatrixData, false);
       }).getApprovedListDetails();
     });
 
     document.getElementById('table-search-input').addEventListener('input', function(e) {
       const keyword = e.target.value.toLowerCase().trim();
-      if (!keyword) { renderMatrixTable(rawMatrixData); return; }
-      const filtered = rawMatrixData.filter(item => {
+      const isProcess = rawProcessData.length > 0;
+      const sourceData = isProcess ? rawProcessData : rawMatrixData;
+      
+      if (!keyword) { renderMatrixTable(sourceData, isProcess); return; }
+      
+      const filtered = sourceData.filter(item => {
         return (item.hei && item.hei.toLowerCase().includes(keyword)) ||
-               (item.mc && item.mc.toLowerCase().includes(keyword)) ||
                (item.region && item.region.toLowerCase().includes(keyword)) ||
-               (item.type && item.type.toLowerCase().includes(keyword)) ||
-               (item.validity && item.validity.toLowerCase().includes(keyword));
+               (isProcess && item.status && item.status.toLowerCase().includes(keyword)) ||
+               (!isProcess && item.mc && item.mc.toLowerCase().includes(keyword)) ||
+               (!isProcess && item.type && item.type.toLowerCase().includes(keyword));
       });
-      renderMatrixTable(filtered);
+      renderMatrixTable(filtered, isProcess);
     });
 
     google.charts.setOnLoadCallback(init);
