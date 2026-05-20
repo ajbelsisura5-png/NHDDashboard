@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght=400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  
+  <style>
+    :root {
+      --side-bg: #0f172a; --main-bg: #f1f5f9; --accent: #3b82f6;
+      --card-bg: #ffffff; --text-dark: #1e293b; --text-muted: #64748b;
+    }
+    body { background-color: var(--main-bg); font-family: 'Plus Jakarta Sans', sans-serif; display: flex; min-height: 100vh; margin: 0; }
+    
+    /* Sidebar Styles */
+.sidebar { 
+  width: 260px; background: var(--side-bg); color: white; padding: 30px 20px; 
+  display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 1000; 
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+  overflow: hidden; /* Importante para hindi lumabas ang text kapag collapsed */
+}
+
+/* Kapag nag-collapse (80px width) */
+.sidebar.collapsed { width: 80px; padding: 30px 10px; }
+
+/* Dito mawawala ang text label at magiging icon-only */
+.sidebar.collapsed .nav-item span, 
+.sidebar.collapsed .logo-area span { 
+    display: none !important; 
+}
+
+/* I-center ang icons at ayusin ang padding kapag collapsed */
+.sidebar.collapsed .nav-item { 
+    justify-content: center; 
+    padding: 12px 0; 
+}
+.sidebar.collapsed .logo-area { 
+    justify-content: center; 
+}
+.sidebar.collapsed .nav-item i { 
+    margin-right: 0 !important; 
+}
+
+/* Main Content transition */
+.main-content { 
+    flex: 1; margin-left: 260px; padding: 40px; 
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+}
+.main-content.expanded { margin-left: 80px; }
+
+    /* Toggle Button */
+    .sidebar-toggle {
+        position: fixed; top: 20px; left: 20px; z-index: 1001;
+        background: var(--accent); color: white; border: none;
+        padding: 8px 15px; border-radius: 8px; cursor: pointer;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .logo-area { 
+    font-weight: 800; 
+    font-size: 16px; 
+    margin-bottom: 30px; 
+    display: flex; 
+    align-items: center; 
+    justify-content: flex-start; /* Left align */
+    color: #fff; 
+    letter-spacing: 0.5px; 
+    cursor: pointer; 
+    padding-top: 60px; /* Dito natin ibinaba ang text para hindi sumama sa button */
+    padding-left: 20px; 
+    height: auto;
+}
+    .logo-area i { 
+    display: none !important; 
+}
+    .nav-item { padding: 12px 15px; border-radius: 12px; color: #94a3b8; text-decoration: none; display: flex; align-items: center; gap: 12px; margin-bottom: 8px; font-weight: 600; transition: 0.3s; cursor: pointer; }
+    .nav-item:hover { background: rgba(255,255,255,0.05); color: #fff; }
+    .nav-item.active { background: var(--accent); color: white; border-radius: 12px; }
+    
+    /* Dynamic Sidebar Navigation Visibility */
+    .dynamic-nav { display: none; } 
+
+    .clock-wrapper { text-align: right; }
+    #live-date { font-size: 14px; color: var(--text-muted); font-weight: 600; display: block; }
+    #live-time { font-size: 20px; color: var(--accent); font-weight: 800; display: block; line-height: 1.2; }
+    
+    /* Modified layout to support highlighted larger boxes */
+    .kpi-container { display: grid; grid-template-columns: repeat(5, 1fr); gap: 20px; margin-bottom: 25px; }
+    
+    .kpi-card { background: var(--card-bg); padding: 25px; border-radius: 24px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; transition: transform 0.2s; position: relative; }
+    .clickable-card:hover { transform: translateY(-5px); cursor: pointer; border-color: var(--accent); }
+    
+    /* Highlight Styles for Key Pillars with Decorative Graphics */
+    .kpi-highlighted {
+      grid-column: span 1;
+      border-width: 2px;
+      box-shadow: 0 15px 30px -5px rgba(0,0,0,0.08);
+      overflow: hidden;
+    }
+    
+    /* Base style for abstract graphic design in cards */
+    .kpi-highlighted::before, .kpi-highlighted::after {
+      content: '';
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+      opacity: 0.4;
+    }
+
+    /* Total Applications Theme Decor */
+    .kpi-total-highlight { border-color: #3b82f6; background: linear-gradient(135deg, #ffffff 70%, #eff6ff 100%); }
+    .kpi-total-highlight::before { width: 120px; height: 120px; background: radial-gradient(circle, rgba(59,130,246,0.15) 0%, transparent 70%); top: -40px; right: -40px; }
+    .kpi-total-highlight::after { width: 60px; height: 60px; background: rgba(59,130,246,0.04); bottom: -10px; right: 40px; }
+
+    /* In-Process Theme Decor */
+    .kpi-process-highlight { border-color: #f59e0b; background: linear-gradient(135deg, #ffffff 70%, #fffbeb 100%); }
+    .kpi-process-highlight::before { width: 130px; height: 130px; background: radial-gradient(circle, rgba(245,158,11,0.15) 0%, transparent 70%); top: -50px; right: -30px; }
+    .kpi-process-highlight::after { width: 80px; height: 80px; background: rgba(245,158,11,0.05); bottom: -30px; right: 20px; }
+
+    /* Approved Theme Decor */
+    .kpi-approved-highlight { border-color: #10b981; background: linear-gradient(135deg, #ffffff 70%, #ecfdf5 100%); }
+    .kpi-approved-highlight::before { width: 140px; height: 140px; background: radial-gradient(circle, rgba(16,185,129,0.15) 0%, transparent 70%); top: -30px; right: -50px; }
+    .kpi-approved-highlight::after { width: 50px; height: 50px; background: rgba(16,185,129,0.04); bottom: 10px; right: -10px; }
+
+    /* Non-Credit Theme Decor */
+    .kpi-noncredit-highlight { border-color: #a855f7; background: linear-gradient(135deg, #ffffff 70%, #faf5ff 100%); }
+    .kpi-noncredit-highlight::before { width: 120px; height: 120px; background: radial-gradient(circle, rgba(168,85,247,0.15) 0%, transparent 70%); top: -40px; right: -40px; }
+    .kpi-noncredit-highlight::after { width: 60px; height: 60px; background: rgba(168,85,247,0.04); bottom: 10px; right: -10px; }
+
+    /* Incomplete Theme Decor */
+    .kpi-incomplete-highlight { border-color: #f43f5e; background: linear-gradient(135deg, #ffffff 70%, #fff1f2 100%); }
+    .kpi-incomplete-highlight::before { width: 130px; height: 130px; background: radial-gradient(circle, rgba(244,63,94,0.15) 0%, transparent 70%); top: -50px; right: -30px; }
+    .kpi-incomplete-highlight::after { width: 70px; height: 70px; background: rgba(244,63,94,0.04); bottom: -20px; right: 10px; }
+    
+    .kpi-content {
+      position: relative;
+      z-index: 2;
+    }
+
+    .icon-circle { width: 50px; height: 50px; border-radius: 14px; display: flex; align-items: center; justify-content: center; margin-bottom: 15px; font-size: 24px; }
+    .val-num { font-size: 48px; font-weight: 800; color: var(--text-dark); line-height: 1; }
+    .val-label { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-top: 10px; letter-spacing: 0.5px; }
+    
+    /* Sub KPI Container */
+    .sub-kpi-container { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px; }
+
+    .year-item { display: flex; align-items: baseline; gap: 8px; }
+    .year-label { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
+    .year-val { font-size: 24px; font-weight: 800; color: var(--text-dark); }
+    
+    .sub-label-mini { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: none; }
+    .chart-box { background: var(--card-bg); border-radius: 28px; padding: 30px; border: 1px solid #e2e8f0; height: 100%; display: flex; flex-direction: column; }
+    .chart-title { font-weight: 700; font-size: 16px; color: var(--text-dark); margin-bottom: 25px; display: flex; align-items: center; gap: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+    
+    /* MAP STYLING */
+    .map-wrapper { display: flex; height: 500px; gap: 20px; }
+    .region-sidebar { width: 280px; max-height: 500px; overflow-y: auto; padding-right: 10px; border-right: 1px solid #f1f5f9; }
+    .region-sidebar::-webkit-scrollbar { width: 6px; }
+    .region-sidebar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 10px; }
+    .region-sidebar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    .region-sidebar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    #map { flex: 1; border-radius: 18px; z-index: 1; border: 1px solid #e2e8f0; }
+    .reg-list-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-radius: 10px; margin-bottom: 5px; background: #f8fafc; font-size: 12px; font-weight: 600; color: var(--text-dark); }
+    .reg-list-count { background: var(--accent); color: white; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; }
+
+    .custom-legend { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 20px; padding-top: 15px; border-top: 1px solid #f1f5f9; }
+    .legend-item { display: flex; align-items: center; gap: 10px; font-size: 11px; font-weight: 600; color: var(--text-muted); }
+    .legend-color { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+    #loader { position: fixed; inset: 0; background: white; z-index: 2000; display: flex; justify-content: center; align-items: center; }
+
+    .modal-content { border-radius: 28px; border: none; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
+    .modal-header { border-bottom: 1px solid #f1f5f9; padding: 25px 30px; }
+    .mc-list-item { margin-bottom: 8px; display: flex; align-items: flex-start; gap: 10px; font-size: 13px; line-height: 1.4; text-align: left; }
+    .mc-list-item i { color: #10b981; margin-top: 3px; font-size: 14px; }
+    
+    /* TABLE STYLING */
+    .table-custom thead th { 
+      background: #2563eb !important; 
+      padding: 15px 20px; 
+      font-size: 12px; 
+      color: #ffffff !important; 
+      font-weight: 700;
+      text-transform: uppercase; 
+      letter-spacing: 0.5px; 
+      border: none; 
+      text-align: center !important; 
+      vertical-align: middle !important; 
+    }
+    .table-custom tbody td {
+      vertical-align: top !important;
+    }
+
+    /* SEARCH BAR STYLING */
+    .search-wrapper {
+      padding: 20px 30px;
+      background: #f8fafc;
+      border-bottom: 1px solid #edf2f7;
+    }
+    .search-input-group {
+      position: relative;
+      max-width: 400px;
+    }
+    .search-input-group i {
+      position: absolute;
+      left: 15px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+    .search-control {
+      padding: 10px 15px 10px 42px;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      font-size: 14px;
+      width: 100%;
+      font-family: inherit;
+      transition: all 0.2s;
+    }
+    .search-control:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    }
+    
+    /* Counter Badge Styling */
+    .mc-count-badge {
+      background-color: #2563eb;
+      color: #ffffff;
+      padding: 5px 14px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 13px;
+      display: inline-block;
+      box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+    }
+
+    /* HOME PAGE WELCOME STYLING */
+    .home-hero-card {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      color: white;
+      border-radius: 30px;
+      padding: 50px;
+      margin-top: 30px; 
+      margin-bottom: 40px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+      position: relative;
+      overflow: hidden;
+    }
+    .home-hero-card::after {
+      content: ''; position: absolute; top: -50%; right: -20%; width: 500px; height: 500px;
+      background: radial-gradient(circle, rgba(59,130,246,0.15) 0%, transparent 70%); z-index: 1;
+    }
+    .home-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 25px;
+    }
+    .home-module-card {
+      background: var(--card-bg);
+      border-radius: 24px;
+      padding: 35px 30px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 10px 25px -5px rgba(0,0,0,0.02);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      text-decoration: none !important;
+    }
+    .home-module-card:not(.disabled-card) {
+      cursor: pointer;
+    }
+    .home-module-card:not(.disabled-card):hover {
+      transform: translateY(-8px);
+      box-shadow: 0 20px 30px -10px rgba(0,0,0,0.08);
+      border-color: var(--accent);
+    }
+    .disabled-card {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .home-module-icon {
+      width: 55px; height: 55px; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; margin-bottom: 25px;
+    }
+
+    /* PORTRAIT 4-COLUMN BROCHURE GRID STYLING WITH IMAGE FIX */
+    .brochures-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      margin-top: 15px;
+    }
+    .brochure-card {
+      background: var(--card-bg);
+      border-radius: 24px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.3s ease;
+      height: 100%; 
+    }
+    .brochure-card:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 15px 30px rgba(0,0,0,0.08);
+      border-color: var(--accent);
+    }
+    .brochure-preview-placeholder {
+      height: 280px; 
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+      position: relative;
+      overflow: hidden;
+    }
+    .brochure-preview-placeholder img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: top center;
+    }
+    .brochure-badge {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(4px);
+      color: #fff;
+      padding: 4px 12px;
+      border-radius: 8px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      z-index: 2;
+    }
+    .brochure-details {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      flex-grow: 1;
+    }
+    .brochure-title {
+      font-weight: 800;
+      font-size: 16px;
+      color: var(--text-dark);
+      margin-bottom: 8px;
+      line-height: 1.4;
+    }
+    .brochure-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-bottom: 25px;
+    }
+    .brochure-action-footer {
+      margin-top: auto;
+      padding-top: 15px;
+      border-top: 1px solid #f8fafc;
+      text-align: center;
+    }
+    .brochure-action-link {
+      color: var(--text-dark);
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 14px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: color 0.2s;
+    }
+    .brochure-action-link:hover {
+      color: var(--accent);
+    }
+    .brochure-action-link i {
+      font-size: 12px;
+    }
+
+    /* HEI List Card Styling */
+    .hei-stats-card {
+      display: flex;
+      align-items: center;
+      gap: 30px;
+      padding: 30px;
+    }
+    .hei-icon-wrapper {
+      font-size: 48px;
+      color: var(--accent);
+    }
+    .hei-content {
+      flex: 1;
+    }
+    .hei-number {
+      font-size: 60px;
+      font-weight: 800;
+      color: var(--accent);
+      line-height: 1;
+      margin-bottom: 5px;
+    }
+    .hei-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+  </style>
+</head>
+<body>
+
+  <button class="sidebar-toggle" onclick="toggleSidebar()">
+      <i class="fas fa-bars"></i>
+  </button>
+
+  <div id="loader"><div class="spinner-grow text-primary"></div></div>
+
+  <div class="sidebar" id="sidebar">
+  <div class="logo-area" onclick="switchSection('home')">
+      <i class="fas fa-bolt"></i> <span>OPSD-NHD Portal</span>
+  </div>
+  
+  <a onclick="switchSection('home')" id="nav-home" class="nav-item active">
+      <i class="fas fa-home"></i> <span>Home</span>
+  </a>
+  
+  <a onclick="switchSection('brochures')" id="nav-brochures" class="nav-item">
+      <i class="fas fa-book-open"></i> <span>Brochures</span>
+  </a>
+  
+  <a onclick="switchSection('micro')" id="nav-micro" class="nav-item dynamic-nav">
+      <i class="fas fa-graduation-cap"></i> <span>Micro-credential</span>
+  </a>
+  
+  <a href="#" id="nav-eteeap" class="nav-item dynamic-nav">
+      <i class="fas fa-briefcase"></i> <span>ETEEAP</span>
+  </a>
+  
+  <a href="https://script.google.com/macros/s/..." id="nav-odel" class="nav-item dynamic-nav">
+      <i class="fas fa-laptop-house"></i> <span>ODeL</span>
+  </a>
+  
+  <a href="#" class="nav-item" style="margin-top: auto;">
+      <i class="fas fa-cog"></i> <span>Settings</span>
+  </a>
+</div>
+
+  <div class="main-content" id="mainContent">
+    
+    <div class="d-flex justify-content-between align-items-center mb-5">
+      <div id="dynamic-header-text">
+        <h2 style="font-weight: 800; color: var(--text-dark); margin: 0;">Welcome back!</h2>
+        <p style="color: var(--text-muted); font-size: 14px; margin: 0;">OPSD-NHD Central Database Management Systems</p>
+      </div>
+      <div class="clock-wrapper">
+        <span id="live-date">...</span>
+        <span id="live-time">00:00 AM</span>
+      </div>
+    </div>
+
+    <div id="section-home">
+      <div class="home-hero-card">
+        <div style="position: relative; z-index: 2; max-width: 650px;">
+          <span style="background: rgba(59,130,246,0.2); color: #60a5fa; padding: 6px 16px; border-radius: 30px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">Central Portal</span>
+          
+          <h1 style="font-weight: 800; font-size: 36px; margin-top: 15px; margin-bottom: 6px; letter-spacing: -0.5px; line-height: 1.2;">Office of Programs and Standards Development</h1>
+          
+          <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.15); padding: 6px 14px; border-radius: 10px; margin-bottom: 35px;">
+            <i class="fas fa-sitemap" style="color: #60a5fa; font-size: 13px;"></i>
+            <span style="font-size: 13px; font-weight: 600; color: #e2e8f0; letter-spacing: 0.3px;">Non-Conventional Higher Education Division</span>
+          </div>
+
+          <p style="color: #94a3b8; font-size: 15px; line-height: 1.6; margin: 0;">Select a database below to view real-time monitoring analytics, institutional regional mapping profiles, and statistical data statuses.</p>
+        </div>
+      </div>
+
+      <div class="home-grid">
+        <div class="home-module-card" onclick="switchSection('micro')">
+          <div class="home-module-icon" style="background: #eff6ff; color: #3b82f6;"><i class="fas fa-graduation-cap"></i></div>
+          <h4 style="font-weight: 700; color: var(--text-dark); font-size: 18px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+            Micro-credentials <i class="fas fa-chevron-right style-arrow" style="font-size: 13px; color: var(--accent); opacity: 0.7;"></i>
+          </h4>
+          <p style="color: var(--text-muted); font-size: 13px; line-height: 1.5; margin: 0;">Track and review application workflows for micro-credential pathways, list of approved providers, and automated regional matrices.</p>
+        </div>
+        
+        <div class="home-module-card disabled-card">
+          <div class="home-module-icon" style="background: #fdf2f8; color: #ec4899;"><i class="fas fa-briefcase"></i></div>
+          <h4 style="font-weight: 700; color: var(--text-dark); font-size: 18px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+            ETEEAP <span style="font-size: 10px; background: #fce7f3; color: #db2777; padding: 3px 8px; border-radius: 6px; font-weight: 700;">DEV</span>
+          </h4>
+          <p style="color: var(--text-muted); font-size: 13px; line-height: 1.5; margin: 0;">Expanded Tertiary Education Equivalency and Accreditation Program monitoring dashboard and records mapping.</p>
+        </div>
+
+        <a href="https://script.google.com/macros/s/AKfycbzgofnJAj6VQ4FGt7TfZJaWK0Y0EeMgJADXtQCzPpKT9TcPzfNiDL-m4eBbIwzzIJX0/exec" class="home-module-card" onclick="showOdelNav()">
+          <div class="home-module-icon" style="background: #f0fdf4; color: #22c55e;"><i class="fas fa-laptop-house"></i></div>
+          <h4 style="font-weight: 700; color: var(--text-dark); font-size: 18px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+            ODeL Portal <i class="fas fa-external-link-alt" style="font-size: 12px; color: #22c55e; opacity: 0.7;"></i>
+          </h4>
+          <p style="color: var(--text-muted); font-size: 13px; line-height: 1.5; margin: 0;">Access the Open Distance and Digital e-Learning system architecture data platform built for remote institutional metrics.</p>
+        </a>
+      </div>
+    </div>
+
+    <div id="section-micro" style="display: none;">
+      <button onclick="switchSection('home')" class="btn btn-sm btn-outline-secondary mb-4 border-0" style="font-weight:600; border-radius:8px; padding: 6px 14px;">
+        <i class="fas fa-arrow-left me-2"></i> Back to Home
+      </button>
+
+      <div class="kpi-container">
+        <div class="kpi-card kpi-highlighted kpi-total-highlight">
+          <div class="kpi-content">
+            <div class="icon-circle" style="background:#eff6ff;color:#3b82f6"><i class="fas fa-file-alt"></i></div>
+            <div class="val-num" id="stat-total">51</div>
+            <div class="val-label">Total Applications</div>
+          </div>
+        </div>
+        
+        <div class="kpi-card kpi-highlighted kpi-process-highlight">
+          <div class="kpi-content">
+            <div class="icon-circle" style="background:#fffbeb;color:#f59e0b"><i class="fas fa-clock"></i></div>
+            <div class="val-num" id="stat-process">22</div>
+            <div class="val-label">In-Process</div>
+          </div>
+        </div>
+
+        <div class="kpi-card kpi-highlighted kpi-approved-highlight clickable-card" id="approved-trigger">
+          <div class="kpi-content">
+            <div class="icon-circle" style="background:#ecfdf5;color:#10b981"><i class="fas fa-check"></i></div>
+            <div class="val-num" id="stat-approved">6</div>
+            <div class="val-label">Approved Micro-credential Provider</div>
+          </div>
+        </div>
+        
+        <div class="kpi-card kpi-highlighted kpi-noncredit-highlight">
+          <div class="kpi-content">
+            <div class="icon-circle" style="background:#faf5ff;color:#a855f7"><i class="fas fa-certificate"></i></div>
+            <div class="val-num" id="stat-noncredit">14</div>
+            <div class="val-label">Non-Credit</div>
+          </div>
+        </div>
+        
+        <div class="kpi-card kpi-highlighted kpi-incomplete-highlight">
+          <div class="kpi-content">
+            <div class="icon-circle" style="background:#fff1f2;color:#f43f5e"><i class="fas fa-times"></i></div>
+            <div class="val-num" id="stat-incomplete">9</div>
+            <div class="val-label">Incomplete Documents</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sub-kpi-container">
+        <div class="kpi-card clickable-card hei-stats-card" id="heis-list-trigger">
+          <div class="hei-icon-wrapper">
+            <i class="fas fa-school"></i>
+          </div>
+          <div class="hei-content">
+            <div class="hei-number" id="stat-unique-heis">46</div>
+            <div class="hei-label">HEIs and Non-HEIs with Applications</div>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="val-label" style="margin-bottom: 15px;"><i class="fas fa-calendar-alt" style="margin-right: 8px; color: var(--accent);"></i> Applications by Year</div>
+          <div id="year-list-container" style="display: flex; flex-direction: column; gap: 12px;"></div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="val-label" style="margin-bottom: 15px;"><i class="fas fa-layer-group" style="margin-right: 8px; color: var(--accent);"></i> Institution Type</div>
+          <div class="d-flex align-items: center; gap-4" style="gap: 40px;">
+            <div class="d-flex align-items-center gap-3">
+              <i class="fas fa-university" style="color: var(--accent); font-size: 28px;"></i>
+              <div>
+                <div class="val-num" id="stat-heis" style="font-size: 32px; margin-bottom: 2px;">0</div>
+                <div class="sub-label-mini">HEIs</div>
+              </div>
+            </div>
+            <div style="border-right: 2px solid #e2e8f0; height: 50px;"></div>
+            <div class="d-flex align-items-center gap-3">
+              <i class="fas fa-building" style="color: var(--accent); font-size: 28px;"></i>
+              <div>
+                <div class="val-num" id="stat-nonheis" style="font-size: 32px; margin-bottom: 2px;">0</div>
+                <div class="sub-label-mini">Non-HEIs</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-4">
+        <div class="col-lg-7">
+          <div class="chart-box">
+            <div class="chart-title"><i class="fas fa-map-marked-alt text-primary"></i> HEI Regional Mapping</div>
+            <div class="map-wrapper">
+              <div class="region-sidebar" id="map-region-list">
+                <div class="reg-list-item"><span>Abtao</span><span class="reg-list-count">138</span></div>
+                <div class="reg-list-item"><span>Philippine</span><span class="reg-list-count">98</span></div>
+                <div class="reg-list-item"><span>Anamola</span><span class="reg-list-count">41</span></div>
+                <div class="reg-list-item"><span>Anlamta</span><span class="reg-list-count">30</span></div>
+                <div class="reg-list-item"><span>Philippines</span><span class="reg-list-count">29</span></div>
+                <div class="reg-list-item"><span>Cangama</span><span class="reg-list-count">38</span></div>
+                <div class="reg-list-item"><span>Cumanola</span><span class="reg-list-count">29</span></div>
+                <div class="reg-list-item"><span>Delmanai</span><span class="reg-list-count">23</span></div>
+                <div class="reg-list-item"><span>Hamalcono</span><span class="reg-list-count">18</span></div>
+                <div class="reg-list-item"><span>Kong Sannanta</span><span class="reg-list-count">19</span></div>
+                <div class="reg-list-item"><span>Patan</span><span class="reg-list-count">11</span></div>
+                <div class="reg-list-item"><span>Susan Kong</span><span class="reg-list-count">17</span></div>
+                <div class="reg-list-item"><span>Sanangata</span><span class="reg-list-count">16</span></div>
+                <div class="reg-list-item"><span>Vemah</span><span class="reg-list-count">12</span></div>
+                <div class="reg-list-item"><span>Philippine</span><span class="reg-list-count">20</span></div>
+              </div>
+              <div id="map"></div>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-5">
+          <div class="chart-box">
+            <div class="chart-title"><i class="fas fa-chart-pie text-primary"></i> Application Status</div>
+            <div id="chart_status" style="height: 340px;"></div>
+            <div id="status-legend" class="custom-legend"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="section-brochures" style="display: none;">
+      <button onclick="switchSection('home')" class="btn btn-sm btn-outline-secondary mb-4 border-0" style="font-weight:600; border-radius:8px; padding: 6px 14px;">
+        <i class="fas fa-arrow-left me-2"></i> Back to Home
+      </button>
+      
+      <div class="chart-box">
+        <div class="chart-title"><i class="fas fa-book-open text-primary"></i> Institutional & Program Brochures</div>
+        <p style="color: var(--text-muted); font-size: 14px; margin-top: -15px; margin-bottom: 25px;">Access and download the official guidelines and handbooks distributed by the division.</p>
+        
+        <div class="brochures-grid">
+          
+          <div class="brochure-card">
+            <div class="brochure-preview-placeholder">
+              <span class="brochure-badge">CMO No. 1, Series of 2025</span>
+              <img src="https://lh3.googleusercontent.com/d/1AeCsbfFUi0Y2X1s_Vu3wlP5IWHfdt8OH" alt="Micro-Credentials Cover">
+            </div>
+            <div class="brochure-details">
+              <div class="brochure-title">Micro-Credential</div>
+              <div class="brochure-desc">Focuses on guidelines for the development, approval, and recognition of micro-credentials in higher education</div>
+              <div class="brochure-action-footer">
+                <a href="https://drive.google.com/file/d/11ZhCCmkqa1YIvD2ZfUuPYk6w4QvCY_dq/view?usp=sharing" target="_blank" class="brochure-action-link">
+                  <i class="fas fa-external-link-alt"></i> View Brochure
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <div class="brochure-card">
+            <div class="brochure-preview-placeholder">
+              <span class="brochure-badge">CMO No. 11, Series of 2025</span>
+              <img src="https://lh3.googleusercontent.com/d/1IruziE0oD532gW8Qis5QHL3E79BAGxnE" alt="ETEEAP Cover">
+            </div>
+            <div class="brochure-details">
+              <div class="brochure-title">ETEEAP</div>
+              <div class="brochure-desc">Details the implementation framework and procedures for the Expanded Tertiary Education Equivalency and Accreditation Program</div>
+              <div class="brochure-action-footer">
+                <a href="https://drive.google.com/file/d/17WSz7vf2-0BNpsuXu4Gtl7u8nRwUP3ap/view?usp=sharing" target="_blank" class="brochure-action-link">
+                  <i class="fas fa-external-link-alt"></i> View Brochure
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <div class="brochure-card">
+            <div class="brochure-preview-placeholder">
+              <span class="brochure-badge">CMO No. 12, Series of 2025</span>
+              <img src="https://lh3.googleusercontent.com/d/1T3ZgJmb2BgzrbXjNA4OcxnDnBDmyNoRm" alt="ODeL Cover">
+            </div>
+            <div class="brochure-details">
+              <div class="brochure-title">ODeL</div>
+              <div class="brochure-desc">Covers governance, metrics, and profiles for Open Distance and Digital e-Learning systems</div>
+              <div class="brochure-action-footer">
+                <a href="https://drive.google.com/file/d/1FzFu2V43BreTC6MGj2bH62fpXuKiqsUw/view?usp=sharing" target="_blank" class="brochure-action-link">
+                  <i class="fas fa-external-link-alt"></i> View Brochure
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <div class="brochure-card">
+            <div class="brochure-preview-placeholder">
+              <span class="brochure-badge">Joint CHED-TESDA Memorandum Circular No. 1, s. 2023</span>
+              <img src="https://lh3.googleusercontent.com/d/1Pwm5_Yv4FZi2emS8x73dyPWccMV8pPRa" alt="PCTS Cover">
+            </div>
+            <div class="brochure-details">
+              <div class="brochure-title">PCTS</div>
+              <div class="brochure-desc">Outlines the Philippine Credit Transfer System operations and learning mobility paths</div>
+              <div class="brochure-action-footer">
+                <a href="https://drive.google.com/file/d/1uoF-7A6pOJfnzs5CTqeQEXz858JAxfCQ/view?usp=sharing" target="_blank" class="brochure-action-link">
+                  <i class="fas fa-external-link-alt"></i> View Brochure
+                </a>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="modal fade" id="approvedModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modal-title-text" style="font-weight: 800; color: var(--text-dark);"></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        
+        <div class="search-wrapper" id="modal-search-wrapper" style="display: none;">
+          <div class="search-input-group">
+            <i class="fas fa-search"></i>
+            <input type="text" id="table-search-input" class="search-control" placeholder="Type to search institution, credential, or region...">
+          </div>
+        </div>
+
+        <div class="modal-body" style="padding: 0; max-height: 55vh; overflow-y: auto;">
+          <table class="table table-custom table-hover mb-0">
+            <thead id="modal-table-head" style="position: sticky; top: 0; z-index: 10;"></thead>
+            <tbody id="approved-list-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    // Sidebar Toggle Function
+    function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const mainContent = document.getElementById('mainContent');
+    
+    sidebar.classList.toggle('collapsed');
+    mainContent.classList.toggle('expanded');
+}
+
+    google.charts.load('current', {'packages':['corechart']});
+
+    let rawMatrixData = []; 
+    let mapInitialized = false;
+    let mapObject = null;
+    let cachedRes = null;
+
+    function updateClock() {
+      const now = new Date();
+      const dOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+      const tOptions = { hour: '2-digit', minute: '2-digit', hour12: true };
+      document.getElementById('live-date').innerText = now.toLocaleDateString('en-US', dOptions);
+      document.getElementById('live-time').innerText = now.toLocaleTimeString('en-US', tOptions);
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    function init() {
+      google.script.run.withSuccessHandler(renderDashboard).getDashboardData();
+    }
+
+    function switchSection(target) {
+      const homeSec = document.getElementById('section-home');
+      const microSec = document.getElementById('section-micro');
+      const brochuresSec = document.getElementById('section-brochures');
+      
+      const navHome = document.getElementById('nav-home');
+      const navMicro = document.getElementById('nav-micro');
+      const navBrochures = document.getElementById('nav-brochures');
+      const headerText = document.getElementById('dynamic-header-text');
+
+      homeSec.style.display = 'none';
+      if(microSec) microSec.style.display = 'none';
+      if(brochuresSec) brochuresSec.style.display = 'none';
+      
+      navHome.classList.remove('active');
+      navMicro.classList.remove('active');
+      navBrochures.classList.remove('active');
+
+      if (target === 'home') {
+        homeSec.style.display = 'block';
+        navHome.classList.add('active');
+        
+        const dynamicItems = document.querySelectorAll('.dynamic-nav');
+        dynamicItems.forEach(item => { item.style.display = 'none'; });
+
+        headerText.innerHTML = `
+          <h2 style="font-weight: 800; color: var(--text-dark); margin: 0;">Welcome back!</h2>
+          <p style="color: var(--text-muted); font-size: 14px; margin: 0;">OPSD-NHD Central Database Management Systems</p>
+        `;
+      } else if (target === 'micro') {
+        document.getElementById('nav-micro').style.display = 'flex';
+        microSec.style.display = 'block';
+        navMicro.classList.add('active');
+        
+        headerText.innerHTML = `
+          <h2 style="font-weight: 800; color: var(--text-dark); margin: 0;">Application Overview</h2>
+          <p style="color: var(--text-muted); font-size: 14px; margin: 0;">Real-time monitoring of micro-credential applications</p>
+        `;
+        
+        setTimeout(() => {
+          if (mapObject) {
+            mapObject.invalidateSize();
+            if (cachedRes && cachedRes.mapData) renderPhilippineMap(cachedRes.mapData);
+          } else if (cachedRes) {
+            renderPhilippineMap(cachedRes.mapData);
+          }
+          if (cachedRes) drawPieChart(cachedRes);
+        }, 300);
+      } else if (target === 'brochures') {
+        brochuresSec.style.display = 'block';
+        navBrochures.classList.add('active');
+        
+        headerText.innerHTML = `
+          <h2 style="font-weight: 800; color: var(--text-dark); margin: 0;">Media Resources</h2>
+          <p style="color: var(--text-muted); font-size: 14px; margin: 0;">Download division handouts and program brochures</p>
+        `;
+      }
+    }
+
+    function showOdelNav() {
+      document.getElementById('nav-odel').style.display = 'flex';
+    }
+
+    function renderDashboard(res) {
+      cachedRes = res;
+      document.getElementById('loader').style.display = 'none';
+      document.getElementById('stat-total').innerText = res.total;
+      document.getElementById('stat-approved').innerText = res.approved;
+      document.getElementById('stat-process').innerText = res.inProcess;
+      document.getElementById('stat-noncredit').innerText = res.nonCredit;
+      document.getElementById('stat-incomplete').innerText = res.incomplete;
+      document.getElementById('stat-unique-heis').innerText = res.uniqueHEIsCount || 0;
+      document.getElementById('stat-heis').innerText = res.heisCount;
+      document.getElementById('stat-nonheis').innerText = res.nonHeisCount;
+      
+      const yearContainer = document.getElementById('year-list-container');
+      yearContainer.innerHTML = '';
+      Object.keys(res.yearCounts).sort().forEach(yr => {
+        yearContainer.innerHTML += `<div class="year-item"><span class="year-label">${yr}:</span><span class="year-val">${res.yearCounts[yr]}</span></div>`;
+      });
+
+      const regSidebar = document.getElementById('map-region-list');
+      regSidebar.innerHTML = '';
+      Object.keys(res.regions).sort().forEach(reg => {
+        regSidebar.innerHTML += `<div class="reg-list-item"><span>${reg}</span><span class="reg-list-count">${res.regions[reg]}</span></div>`;
+      });
+
+      if (document.getElementById('section-micro').style.display !== 'none') {
+        renderPhilippineMap(res.mapData);
+      }
+      drawPieChart(res);
+    }
+
+    function renderPhilippineMap(points) {
+      if (!points) return;
+      if (!mapInitialized) {
+        mapObject = L.map('map').setView([12.8797, 121.7740], 6);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(mapObject);
+        mapInitialized = true;
+      }
+      mapObject.eachLayer((layer) => {
+        if (layer instanceof L.Marker) mapObject.removeLayer(layer);
+      });
+      points.forEach(p => {
+        let lat = parseFloat(p.lat);
+        let lng = parseFloat(p.lng);
+        if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+          L.marker([lat, lng]).addTo(mapObject).bindPopup(`<b>${p.name}</b><br><small>${p.address || ''}</small>`);
+        }
+      });
+      mapObject.invalidateSize();
+    }
+
+    function drawPieChart(res) {
+      const statusColors = ['#3b82f6', '#f59e0b', '#10b981', '#f43f5e', '#a855f7', '#06b6d4', '#64748b'];
+      let stArr = [['Status', 'Count']];
+      Object.keys(res.statuses).forEach(st => stArr.push([st, res.statuses[st]]));
+      
+      const options = {
+        pieHole: 0.6, colors: statusColors, legend: 'none',
+        chartArea: { left: "5%", top: "5%", width: "90%", height: "90%" },
+        pieSliceText: 'percentage',
+        pieSliceTextStyle: { color: '#ffffff', fontName: 'Plus Jakarta Sans', fontSize: 12, bold: true },
+        sliceVisibilityThreshold: 0
+      };
+      new google.visualization.PieChart(document.getElementById('chart_status')).draw(google.visualization.arrayToDataTable(stArr), options);
+
+      const legendDiv = document.getElementById('status-legend');
+      legendDiv.innerHTML = '';
+      Object.keys(res.statuses).forEach((st, i) => {
+        legendDiv.innerHTML += `<div class="legend-item"><div class="legend-color" style="background:${statusColors[i % statusColors.length]}"></div><span>${st}: <strong>${res.statuses[st]}</strong></span></div>`;
+      });
+    }
+
+    document.getElementById('heis-list-trigger').addEventListener('click', function() {
+      document.getElementById('modal-search-wrapper').style.display = 'none';
+      const modal = new bootstrap.Modal(document.getElementById('approvedModal'));
+      const title = document.getElementById('modal-title-text');
+      const thead = document.getElementById('modal-table-head');
+      const tbody = document.getElementById('approved-list-body');
+      title.innerHTML = '<i class="fas fa-school text-primary me-2"></i> List of HEIs and Non-HEIs with Applications';
+      thead.innerHTML = '<tr><th style="width: 15%;">No.</th><th>Institution Name</th></tr>';
+      tbody.innerHTML = '<tr><td colspan="2" class="text-center p-5"><div class="spinner-border text-primary me-2"></div> Fetching HEI list...</td></tr>';
+      modal.show();
+      google.script.run.withSuccessHandler(function(list) {
+        if (!list || list.length === 0) { tbody.innerHTML = '<tr><td colspan="2" class="text-center p-5">No HEIs found.</td></tr>'; return; }
+        tbody.innerHTML = '';
+        list.forEach((hei, index) => {
+          tbody.insertAdjacentHTML('beforeend', `<tr><td style="padding: 15px 25px; color: var(--text-muted); border-right: 1px solid #f1f5f9; text-align: center;">${index + 1}</td><td style="padding: 15px 25px; font-weight: 600; color: var(--text-dark);">${hei}</td></tr>`);
+        });
+      }).getAllHEIsList();
+    });
+
+    function renderMatrixTable(filteredData) {
+      const tbody = document.getElementById('approved-list-body');
+      if (!filteredData || filteredData.length === 0) { 
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center p-5 text-muted">No matching provider records found.</td></tr>'; 
+        return; 
+      }
+      tbody.innerHTML = '';
+      const heiCounts = {};
+      filteredData.forEach(item => { heiCounts[item.hei] = (heiCounts[item.hei] || 0) + 1; });
+      const renderedHeis = new Set();
+
+      filteredData.forEach(item => {
+        const isFirstRow = !renderedHeis.has(item.hei);
+        const rowSpan = heiCounts[item.hei];
+        let rowHtml = '<tr>';
+
+        if (isFirstRow) {
+          rowHtml += `<td rowspan="${rowSpan}" style="padding: 15px 20px; border-right: 1px solid #f1f5f9; font-size: 13px; white-space: nowrap; text-align: center; vertical-align: top !important;">${item.region || '-'}</td>`;
+          rowHtml += `<td rowspan="${rowSpan}" style="padding: 15px 20px; font-weight: 700; border-right: 1px solid #f1f5f9; font-size: 13px; vertical-align: top !important;">${item.hei || '-'}</td>`;
+          rowHtml += `<td rowspan="${rowSpan}" style="padding: 15px 20px; text-align: center; border-right: 1px solid #f1f5f9; font-size: 13px; vertical-align: top !important;"><span class="mc-count-badge">${rowSpan}</span></td>`;
+          renderedHeis.add(item.hei);
+        }
+
+        rowHtml += `
+          <td style="padding: 15px 20px; border-right: 1px solid #f1f5f9; font-size: 13px; vertical-align: top !important;">
+            <div class="mc-list-item" style="margin: 0;"><i class="fas fa-check-circle" style="color: #10b981;"></i><span>${item.mc}</span></div>
+          </td>
+          <td style="padding: 15px 20px; text-align: center; border-right: 1px solid #f1f5f9; font-size: 13px; font-weight: 600; vertical-align: top !important;">${item.type || '-'}</td>
+        `;
+
+        if (isFirstRow) rowHtml += `<td rowspan="${rowSpan}" style="padding: 15px 20px; text-align: center; font-size: 13px; font-weight: 600; vertical-align: top !important;">${item.validity || '-'}</td>`;
+        rowHtml += '</tr>';
+        tbody.insertAdjacentHTML('beforeend', rowHtml);
+      });
+    }
+
+    document.getElementById('approved-trigger').addEventListener('click', function() {
+      const modal = new bootstrap.Modal(document.getElementById('approvedModal'));
+      const title = document.getElementById('modal-title-text');
+      const thead = document.getElementById('modal-table-head');
+      const tbody = document.getElementById('approved-list-body');
+      const searchInput = document.getElementById('table-search-input');
+      
+      document.getElementById('modal-search-wrapper').style.display = 'block';
+      searchInput.value = ''; 
+      title.innerHTML = '<i class="fas fa-check-circle text-success me-2"></i> Approved Micro-credential Providers';
+      
+      thead.innerHTML = `
+        <tr>
+          <th style="width: 17%; text-align: center !important;">Region</th>
+          <th style="width: 23%; text-align: center !important;">Institution Name</th>
+          <th style="width: 9%; text-align: center !important;">MC Count</th>
+          <th style="width: 27%; text-align: center !important;">Title of Micro-credentials</th>
+          <th style="width: 11%; text-align: center !important;">Type<br><small style="font-size: 10px; font-weight: 700; opacity: 0.8; display: block; margin-top: 2px;">(FOR CREDIT/NON-CREDIT)</small></th>
+          <th style="width: 13%; text-align: center !important;">Period of Validity</th>
+        </tr>`;
+        
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center p-5"><div class="spinner-border text-light me-2"></div> Fetching matrix data...</td></tr>';
+      modal.show();
+      google.script.run.withSuccessHandler(function(data) {
+        rawMatrixData = data || []; 
+        renderMatrixTable(rawMatrixData);
+      }).getApprovedListDetails();
+    });
+
+    document.getElementById('table-search-input').addEventListener('input', function(e) {
+      const keyword = e.target.value.toLowerCase().trim();
+      if (!keyword) { renderMatrixTable(rawMatrixData); return; }
+      const filtered = rawMatrixData.filter(item => {
+        return (item.hei && item.hei.toLowerCase().includes(keyword)) ||
+               (item.mc && item.mc.toLowerCase().includes(keyword)) ||
+               (item.region && item.region.toLowerCase().includes(keyword)) ||
+               (item.type && item.type.toLowerCase().includes(keyword)) ||
+               (item.validity && item.validity.toLowerCase().includes(keyword));
+      });
+      renderMatrixTable(filtered);
+    });
+
+    google.charts.setOnLoadCallback(init);
+  </script>
+</body>
+</html>
